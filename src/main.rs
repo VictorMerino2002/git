@@ -1,6 +1,9 @@
 mod commands;
 mod config;
+mod objects;
 mod repository;
+mod sha1;
+mod zlib;
 
 use clap::{Parser, Subcommand};
 

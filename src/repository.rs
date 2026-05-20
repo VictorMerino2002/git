@@ -1,7 +1,11 @@
-use anyhow::{Context, Result, bail};
+use anyhow::{Context, Ok, Result, bail};
 use std::{fs, path::PathBuf};
 
-use crate::config::Config;
+use crate::{
+    config::Config,
+    objects::{Blob, Object, ObjectType},
+    sha1, zlib,
+};
 
 pub struct Repository {
     pub worktree: PathBuf,
@@ -44,5 +48,79 @@ impl Repository {
             worktree: path,
             gitdir,
         })
+    }
+
+    pub fn find(path: PathBuf) -> Result<Self> {
+        let gitdir = path.join(".git");
+        if gitdir.exists() {
+            return Ok(Self {
+                worktree: path,
+                gitdir,
+            });
+        }
+        let parent = path.parent().context("Failed to get parent directory")?;
+        if parent == path {
+            bail!("No git repository found");
+        }
+
+        Self::find(parent.to_path_buf())
+    }
+
+    pub fn read_object(&self, sha: &str) -> Result<Box<dyn Object>> {
+        let object_path = self.gitdir.join("objects").join(&sha[0..2]).join(&sha[2..]);
+        if !object_path.exists() {
+            bail!("Object {} not found", sha);
+        }
+        let data = fs::read(&object_path).context("Failed to read object file")?;
+        let raw = zlib::decompress(&data)?;
+
+        let space = raw
+            .iter()
+            .position(|&b| b == b' ')
+            .context(format!("Malformed object {sha}"))?;
+
+        let object_type = &raw[..space];
+
+        let null = raw
+            .iter()
+            .position(|&b| b == b'\0')
+            .context(format!("Malformed object {sha}"))?;
+
+        let size: usize = std::str::from_utf8(&raw[space + 1..null])
+            .context("Invalid size encoding")?
+            .parse()
+            .context("Invalid size number")?;
+
+        if size != raw.len() - null - 1 {
+            bail!("Malformed object {sha}: bad length");
+        }
+
+        let content = &raw[null + 1..];
+
+        let object = match std::str::from_utf8(object_type).context("Invalid object type")? {
+            "blob" => Blob::deserialize(content),
+            t => bail!("Unknown object type: {t}"),
+        };
+        Ok(Box::new(object))
+    }
+
+    pub fn write_object(&self, obj: impl Object) -> Result<String> {
+        let content = obj.serialize();
+        let data: Vec<u8> = [
+            obj.object_type().to_string().as_bytes(),
+            b" ",
+            content.len().to_string().as_bytes(),
+            b"\0",
+            &content,
+        ]
+        .concat();
+
+        let sha = sha1::sha(&data);
+
+        let path = self
+            .gitdir
+            .join(format!("objects/{}/{}", &sha[..2], &sha[2..]));
+        fs::write(path, content).context("Failed to write obj")?;
+        Ok(sha)
     }
 }
