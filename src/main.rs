@@ -7,7 +7,7 @@ mod zlib;
 
 use clap::{Parser, Subcommand};
 
-use crate::commands::InitCommand;
+use crate::commands::{CatFileCommand, InitCommand};
 
 #[derive(Parser)]
 #[command(name = "git")]
@@ -23,6 +23,10 @@ enum Commands {
         #[arg(default_value = ".")]
         path: String,
     },
+    CatFile {
+        object_type: String,
+        object: String,
+    },
 }
 
 fn main() {
@@ -30,6 +34,10 @@ fn main() {
 
     let result = match cli.command {
         Commands::Init { path } => InitCommand::new(path).execute(),
+        Commands::CatFile {
+            object_type,
+            object,
+        } => CatFileCommand::new(&object_type, &object).and_then(|cmd| cmd.execute()),
     };
 
     if let Err(e) = result {

@@ -123,4 +123,8 @@ impl Repository {
         fs::write(path, content).context("Failed to write obj")?;
         Ok(sha)
     }
+
+    pub fn find_sha(&self, name: &str, object_type: Option<&ObjectType>) -> Result<String> {
+        Ok(name.to_string())
+    }
 }
