@@ -1,4 +1,4 @@
-use crate::objects::{ObjectType, object::Object};
+use crate::objects::shared::{Object, ObjectType};
 
 pub struct Blob {
     pub data: Vec<u8>,

@@ -1,5 +1,4 @@
 mod blob;
-mod object;
+pub mod shared;
 
 pub use blob::Blob;
-pub use object::{Object, ObjectType};

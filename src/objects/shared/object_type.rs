@@ -1,19 +1,12 @@
-use anyhow::{Result, bail};
 use std::fmt::Display;
+
+use anyhow::{Result, bail};
 
 pub enum ObjectType {
     Commit,
     Tree,
     Blob,
     Tag,
-}
-
-pub trait Object {
-    fn object_type(&self) -> ObjectType;
-    fn serialize(&self) -> Vec<u8>;
-    fn deserialize(data: &[u8]) -> Self
-    where
-        Self: Sized;
 }
 
 impl Display for ObjectType {

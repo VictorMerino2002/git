@@ -2,7 +2,7 @@ use std::io::{self, Write};
 
 use anyhow::Result;
 
-use crate::{objects::ObjectType, repository::Repository};
+use crate::{objects::shared::ObjectType, repository::Repository};
 
 pub struct CatFileCommand {
     object_type: ObjectType,

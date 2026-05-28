@@ -3,7 +3,10 @@ use std::{fs, path::PathBuf};
 
 use crate::{
     config::Config,
-    objects::{Blob, Object, ObjectType},
+    objects::{
+        Blob,
+        shared::{CompressedObject, Object, ObjectType},
+    },
     sha1, zlib,
 };
 
@@ -104,7 +107,7 @@ impl Repository {
         Ok(Box::new(object))
     }
 
-    pub fn write_object(&self, obj: impl Object) -> Result<String> {
+    pub fn compress_object(obj: Box<dyn Object>) -> Result<CompressedObject> {
         let content = obj.serialize();
         let data: Vec<u8> = [
             obj.object_type().to_string().as_bytes(),
@@ -116,12 +119,26 @@ impl Repository {
         .concat();
 
         let sha = sha1::sha(&data);
+        let data = zlib::compress(&data).context("Failed to compress object")?;
 
-        let path = self
-            .gitdir
-            .join(format!("objects/{}/{}", &sha[..2], &sha[2..]));
-        fs::write(path, content).context("Failed to write obj")?;
-        Ok(sha)
+        Ok(CompressedObject { sha, data })
+    }
+
+    pub fn write_object(&self, obj: Box<dyn Object>) -> Result<CompressedObject> {
+        let compressed_obj = Self::compress_object(obj)?;
+
+        let path = self.gitdir.join(format!(
+            "objects/{}/{}",
+            &compressed_obj.sha[..2],
+            &compressed_obj.sha[2..]
+        ));
+
+        if !path.exists() {
+            fs::create_dir_all(path.parent().unwrap()).context("Failed to create object dir")?;
+            fs::write(path, &compressed_obj.data).context("Failed to write obj")?;
+        }
+
+        Ok(compressed_obj)
     }
 
     pub fn find_sha(&self, name: &str, object_type: Option<&ObjectType>) -> Result<String> {

@@ -7,7 +7,7 @@ mod zlib;
 
 use clap::{Parser, Subcommand};
 
-use crate::commands::{CatFileCommand, InitCommand};
+use crate::commands::{CatFileCommand, HashObjectCommand, InitCommand};
 
 #[derive(Parser)]
 #[command(name = "git")]
@@ -27,6 +27,14 @@ enum Commands {
         object_type: String,
         object: String,
     },
+
+    HashObject {
+        #[arg(short = 't', value_name = "type", default_value = "blob")]
+        object_type: String,
+        #[arg(short = 'w')]
+        write: bool,
+        path: String,
+    },
 }
 
 fn main() {
@@ -38,6 +46,11 @@ fn main() {
             object_type,
             object,
         } => CatFileCommand::new(&object_type, &object).and_then(|cmd| cmd.execute()),
+        Commands::HashObject {
+            object_type,
+            write,
+            path,
+        } => HashObjectCommand::new(&object_type, write, &path).and_then(|cmd| cmd.execute()),
     };
 
     if let Err(e) = result {
