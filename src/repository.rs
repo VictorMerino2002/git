@@ -4,7 +4,7 @@ use std::{fs, path::PathBuf};
 use crate::{
     config::Config,
     objects::{
-        Blob, Commit,
+        Blob, Commit, Tree,
         shared::{CompressedObject, Object, ObjectType},
     },
     utils::{sha1, zlib},
@@ -104,6 +104,7 @@ impl Repository {
             match std::str::from_utf8(object_type).context("Invalid object type")? {
                 "blob" => Box::new(Blob::deserialize(content)),
                 "commit" => Box::new(Commit::deserialize(content)),
+                "tree" => Box::new(Tree::deserialize(content)),
                 t => bail!("Unknown object type: {t}"),
             };
         Ok(object)

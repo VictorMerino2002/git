@@ -1,5 +1,3 @@
-use std::io::{self, Write};
-
 use anyhow::Result;
 
 use crate::{objects::shared::ObjectType, repository::Repository};
@@ -24,8 +22,7 @@ impl CatFileCommand {
         let repo = Repository::find(path)?;
         let object_sha = repo.find_sha(&self.object, Some(&self.object_type))?;
         let object = repo.read_object(&object_sha)?;
-        let bytes = object.serialize();
-        io::stdout().write_all(&bytes)?;
+        print!("{}", object.pretty_print());
         Ok(())
     }
 }

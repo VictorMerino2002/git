@@ -8,4 +8,7 @@ pub trait Object {
     where
         Self: Sized;
     fn as_any(&self) -> &dyn Any;
+    fn pretty_print(&self) -> String {
+        String::from_utf8_lossy(&self.serialize()).to_string()
+    }
 }

@@ -2,6 +2,7 @@ use std::fmt::Display;
 
 use anyhow::{Result, bail};
 
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ObjectType {
     Commit,
     Tree,
