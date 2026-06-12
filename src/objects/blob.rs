@@ -1,3 +1,5 @@
+use std::any::Any;
+
 use crate::objects::shared::{Object, ObjectType};
 
 pub struct Blob {
@@ -17,5 +19,9 @@ impl Object for Blob {
 
     fn serialize(&self) -> Vec<u8> {
         self.data.clone()
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
     }
 }

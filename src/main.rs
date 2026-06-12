@@ -2,12 +2,11 @@ mod commands;
 mod config;
 mod objects;
 mod repository;
-mod sha1;
-mod zlib;
+mod utils;
 
 use clap::{Parser, Subcommand};
 
-use crate::commands::{CatFileCommand, HashObjectCommand, InitCommand};
+use crate::commands::{CatFileCommand, HashObjectCommand, InitCommand, LogCommand};
 
 #[derive(Parser)]
 #[command(name = "git")]
@@ -27,13 +26,16 @@ enum Commands {
         object_type: String,
         object: String,
     },
-
     HashObject {
         #[arg(short = 't', value_name = "type", default_value = "blob")]
         object_type: String,
         #[arg(short = 'w')]
         write: bool,
         path: String,
+    },
+    Log {
+        #[arg(default_value = "HEAD")]
+        commit: String,
     },
 }
 
@@ -51,6 +53,7 @@ fn main() {
             write,
             path,
         } => HashObjectCommand::new(&object_type, write, &path).and_then(|cmd| cmd.execute()),
+        Commands::Log { commit } => LogCommand::new(&commit).and_then(|cmd| cmd.execute()),
     };
 
     if let Err(e) = result {

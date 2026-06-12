@@ -4,10 +4,10 @@ use std::{fs, path::PathBuf};
 use crate::{
     config::Config,
     objects::{
-        Blob,
+        Blob, Commit,
         shared::{CompressedObject, Object, ObjectType},
     },
-    sha1, zlib,
+    utils::{sha1, zlib},
 };
 
 pub struct Repository {
@@ -100,11 +100,13 @@ impl Repository {
 
         let content = &raw[null + 1..];
 
-        let object = match std::str::from_utf8(object_type).context("Invalid object type")? {
-            "blob" => Blob::deserialize(content),
-            t => bail!("Unknown object type: {t}"),
-        };
-        Ok(Box::new(object))
+        let object: Box<dyn Object> =
+            match std::str::from_utf8(object_type).context("Invalid object type")? {
+                "blob" => Box::new(Blob::deserialize(content)),
+                "commit" => Box::new(Commit::deserialize(content)),
+                t => bail!("Unknown object type: {t}"),
+            };
+        Ok(object)
     }
 
     pub fn compress_object(obj: Box<dyn Object>) -> Result<CompressedObject> {
