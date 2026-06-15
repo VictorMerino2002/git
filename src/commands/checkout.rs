@@ -56,7 +56,9 @@ impl Checkout {
         Ok(())
     }
 
-    fn tree_checkout(repo: &Repository, tree: &Tree, path: &PathBuf) -> Result<()> {
+    fn tree_checkout(repo: &Repository, tree: &Tree, path: &Path) -> Result<()> {
+        fs::create_dir_all(path)?;
+
         for row in &tree.rows {
             let obj = repo.read_object(&row.sha)?;
             let destination = path.join(PathBuf::from(&row.filename));
