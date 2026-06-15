@@ -86,6 +86,11 @@ impl TreeRow {
 
         Self::new(&mode, &sha, filename)
     }
+
+    pub fn pretty_print(&self, parent_dir: Option<String>) -> String {
+        let route = format!("{}{}", parent_dir.unwrap_or_default(), self.filename);
+        format!("{} {} {}\t{}", self.mode, self.object_type, self.sha, route)
+    }
 }
 
 impl Object for Tree {
@@ -133,12 +138,7 @@ impl Object for Tree {
     fn pretty_print(&self) -> String {
         self.rows
             .iter()
-            .map(|row| {
-                format!(
-                    "{} {} {}\t{}",
-                    row.mode, row.object_type, row.sha, row.filename
-                )
-            })
+            .map(|row| row.pretty_print(None))
             .collect::<Vec<_>>()
             .join("\n")
     }
