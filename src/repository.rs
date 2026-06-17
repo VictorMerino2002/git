@@ -195,4 +195,11 @@ impl Repository {
 
         Ok(ret)
     }
+
+    pub fn create_ref(&self, ref_name: &str, sha: &str) -> Result<()> {
+        let path = self.gitdir.join("refs").join(ref_name);
+        fs::create_dir_all(path.parent().unwrap())?;
+        fs::write(path, format!("{sha}\n"))?;
+        Ok(())
+    }
 }

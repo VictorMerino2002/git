@@ -5,6 +5,7 @@ mod init;
 mod log;
 mod ls_tree;
 mod show_ref;
+mod tag;
 
 pub use cat_file::CatFileCommand;
 pub use checkout::CheckoutCommand;
@@ -13,3 +14,4 @@ pub use init::InitCommand;
 pub use log::LogCommand;
 pub use ls_tree::LsTreeCommand;
 pub use show_ref::ShowRefCommand;
+pub use tag::TagCommand;

@@ -16,7 +16,7 @@ impl ShowRefCommand {
         Ok(())
     }
 
-    fn show_ref(refs: &HashMap<String, RefValue>, with_hash: bool, prefix: &str) {
+    pub fn show_ref(refs: &HashMap<String, RefValue>, with_hash: bool, prefix: &str) {
         for (k, v) in refs {
             let full_key = if prefix.is_empty() {
                 k.clone()
