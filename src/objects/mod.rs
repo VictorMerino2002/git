@@ -5,4 +5,4 @@ mod tree;
 
 pub use blob::Blob;
 pub use commit::Commit;
-pub use tree::{Tree, TreeRow};
+pub use tree::Tree;

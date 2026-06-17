@@ -3,19 +3,19 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, bail};
 
 use crate::{
     objects::{Blob, Commit, Tree, shared::ObjectType},
     repository::Repository,
 };
 
-pub struct Checkout {
+pub struct CheckoutCommand {
     commit: String,
     path: PathBuf,
 }
 
-impl Checkout {
+impl CheckoutCommand {
     pub fn new(commit: &str, path: &str) -> Self {
         Self {
             commit: commit.to_string(),
@@ -26,6 +26,18 @@ impl Checkout {
     pub fn execute(&self) -> Result<()> {
         let path = env::current_dir()?;
         let rel_path = path.join(&self.path);
+
+        if !rel_path.is_dir() {
+            bail!(
+                "The specified path is not a directory: {}",
+                rel_path.display()
+            );
+        }
+
+        if rel_path.read_dir()?.next().is_some() {
+            bail!("The specified path is not empty: {}", rel_path.display());
+        }
+
         let repo = Repository::find(path)?;
 
         let obj = repo.read_object(&self.commit)?;

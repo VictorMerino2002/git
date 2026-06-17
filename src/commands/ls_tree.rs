@@ -10,12 +10,12 @@ use crate::{
     repository::Repository,
 };
 
-pub struct LsTree {
+pub struct LsTreeCommand {
     tree: String,
     recursive: bool,
 }
 
-impl LsTree {
+impl LsTreeCommand {
     pub fn new(tree: &str, recursive: bool) -> Self {
         Self {
             tree: tree.to_string(),

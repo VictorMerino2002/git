@@ -7,7 +7,8 @@ mod utils;
 use clap::{Parser, Subcommand};
 
 use crate::commands::{
-    CatFileCommand, Checkout, HashObjectCommand, InitCommand, LogCommand, LsTree,
+    CatFileCommand, CheckoutCommand, HashObjectCommand, InitCommand, LogCommand, LsTreeCommand,
+    ShowRefCommand,
 };
 
 #[derive(Parser)]
@@ -51,6 +52,7 @@ enum Commands {
         #[arg()]
         path: String,
     },
+    ShowRef {},
 }
 
 fn main() {
@@ -68,8 +70,9 @@ fn main() {
             path,
         } => HashObjectCommand::new(&object_type, write, &path).and_then(|cmd| cmd.execute()),
         Commands::Log { commit } => LogCommand::new(&commit).and_then(|cmd| cmd.execute()),
-        Commands::LsTree { recursive, tree } => LsTree::new(&tree, recursive).execute(),
-        Commands::Checkout { commit, path } => Checkout::new(&commit, &path).execute(),
+        Commands::LsTree { recursive, tree } => LsTreeCommand::new(&tree, recursive).execute(),
+        Commands::Checkout { commit, path } => CheckoutCommand::new(&commit, &path).execute(),
+        Commands::ShowRef {} => ShowRefCommand::execute(),
     };
 
     if let Err(e) = result {

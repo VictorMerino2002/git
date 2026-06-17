@@ -1,5 +1,5 @@
 use anyhow::{Context, Ok, Result, bail};
-use std::{fs, path::PathBuf};
+use std::{collections::HashMap, fs, path::PathBuf};
 
 use crate::{
     config::Config,
@@ -13,6 +13,12 @@ use crate::{
 pub struct Repository {
     pub worktree: PathBuf,
     pub gitdir: PathBuf,
+}
+
+#[derive(Debug)]
+pub enum RefValue {
+    Sha(String),
+    Nested(HashMap<String, RefValue>),
 }
 
 impl Repository {
@@ -146,5 +152,47 @@ impl Repository {
 
     pub fn find_sha(&self, name: &str, object_type: Option<&ObjectType>) -> Result<String> {
         Ok(name.to_string())
+    }
+
+    pub fn ref_resolve(&self, reference: &str) -> Option<String> {
+        let path = self.gitdir.join(reference);
+        if !path.is_file() {
+            return None;
+        }
+        let content = fs::read_to_string(path).ok()?;
+        if let Some(new_reference) = content.strip_prefix("ref: ") {
+            return self.ref_resolve(new_reference.trim());
+        }
+        Some(content.trim().to_string())
+    }
+
+    pub fn ref_list(&self, path_opt: Option<PathBuf>) -> Result<(HashMap<String, RefValue>)> {
+        let path = path_opt.unwrap_or_else(|| self.gitdir.join("refs"));
+
+        let mut entries = fs::read_dir(&path)?
+            .filter_map(|e| e.ok())
+            .collect::<Vec<_>>();
+
+        entries.sort_by_key(|e| e.file_name());
+        let mut ret = HashMap::new();
+
+        for e in entries {
+            let entry_path = path.join(e.file_name());
+            let name = e.file_name().to_string_lossy().to_string();
+
+            if entry_path.is_dir() {
+                ret.insert(name, RefValue::Nested(self.ref_list(Some(entry_path))?));
+            } else {
+                let relative = entry_path
+                    .strip_prefix(&self.gitdir)
+                    .context("Ref path outsite gitdir")?;
+
+                if let Some(sha) = self.ref_resolve(&relative.to_string_lossy()) {
+                    ret.insert(name, RefValue::Sha(sha));
+                }
+            }
+        }
+
+        Ok(ret)
     }
 }
