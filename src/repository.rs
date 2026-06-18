@@ -1,10 +1,11 @@
 use anyhow::{Context, Ok, Result, bail};
+use regex::Regex;
 use std::{collections::HashMap, fs, path::PathBuf};
 
 use crate::{
     config::Config,
     objects::{
-        Blob, Commit, Tree,
+        Blob, Commit, Tag, Tree,
         shared::{CompressedObject, Object, ObjectType},
     },
     utils::{sha1, zlib},
@@ -138,8 +139,8 @@ impl Repository {
 
         let path = self.gitdir.join(format!(
             "objects/{}/{}",
-            &compressed_obj.sha[..2],
-            &compressed_obj.sha[2..]
+            &compressed_obj.sha.chars().take(2).collect::<String>(),
+            &compressed_obj.sha.chars().skip(2).collect::<String>()
         ));
 
         if !path.exists() {
@@ -150,8 +151,104 @@ impl Repository {
         Ok(compressed_obj)
     }
 
-    pub fn find_sha(&self, name: &str, object_type: Option<&ObjectType>) -> Result<String> {
-        Ok(name.to_string())
+    pub fn find_sha(
+        &self,
+        name: &str,
+        object_type: Option<&ObjectType>,
+        follow: bool,
+    ) -> Result<String> {
+        let sha_list = self.object_resolve(name)?;
+
+        if sha_list.is_empty() {
+            bail!("No such reference");
+        }
+
+        if sha_list.len() > 1 {
+            let candidates_display = sha_list.join("\n - ");
+            bail!("Ambiguous reference {name}: Candidates are:\n - {candidates_display}")
+        }
+
+        let mut sha = sha_list[0].clone();
+
+        if object_type.is_none() {
+            return Ok(sha);
+        }
+
+        loop {
+            let obj = self.read_object(&sha)?;
+
+            if &obj.object_type() == object_type.unwrap() {
+                return Ok(sha);
+            }
+
+            if !follow {
+                bail!("Object Not found");
+            }
+
+            match obj.object_type() {
+                ObjectType::Tag => {
+                    let tag = obj
+                        .as_any()
+                        .downcast_ref::<Tag>()
+                        .context("Failed to downcast Tag")?;
+                    sha = tag.object.clone();
+                }
+                ObjectType::Commit => {
+                    if object_type.unwrap() != &ObjectType::Tree {
+                        bail!("Object Not found");
+                    }
+                    let commit = obj
+                        .as_any()
+                        .downcast_ref::<Commit>()
+                        .context("Failed to downcast Commit")?;
+                    sha = commit.tree.clone();
+                }
+                _ => bail!("Object not found"),
+            };
+        }
+    }
+
+    pub fn object_resolve(&self, name: &str) -> Result<Vec<String>> {
+        if name == "HEAD" {
+            let head = self.ref_resolve("HEAD").context("Failed to resolve HEAD")?;
+            return Ok(vec![head]);
+        }
+
+        let hash_pattern = Regex::new("^[0-9A-Fa-f]{4,40}$")?;
+        let mut candidates = vec![];
+
+        if hash_pattern.is_match(name) {
+            let name_lower = name.to_lowercase();
+            let prefix = name_lower.chars().take(2).collect::<String>();
+            let path = self.gitdir.join("objects").join(&prefix);
+
+            if path.exists() && path.is_dir() {
+                let rem = name_lower.chars().skip(2).collect::<String>();
+                for f in fs::read_dir(path)? {
+                    let file_name = f?.file_name().to_string_lossy().to_string();
+                    if file_name.starts_with(&rem) {
+                        candidates.push(format!("{}{}", prefix, file_name));
+                    }
+                }
+            }
+        }
+        let as_tag = self.ref_resolve(&format!("refs/tags/{}", name));
+        let as_branch = self.ref_resolve(&format!("refs/heads/{}", name));
+        let as_remote_branch = self.ref_resolve(&format!("refs/remotes/{}", name));
+
+        if let Some(tag_sha) = as_tag {
+            candidates.push(tag_sha);
+        }
+
+        if let Some(branch_sha) = as_branch {
+            candidates.push(branch_sha);
+        }
+
+        if let Some(remote_branch_sha) = as_remote_branch {
+            candidates.push(remote_branch_sha);
+        }
+
+        Ok(candidates)
     }
 
     pub fn ref_resolve(&self, reference: &str) -> Option<String> {

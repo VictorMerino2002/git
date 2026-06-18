@@ -8,7 +8,7 @@ use clap::{Parser, Subcommand};
 
 use crate::commands::{
     CatFileCommand, CheckoutCommand, HashObjectCommand, InitCommand, LogCommand, LsTreeCommand,
-    ShowRefCommand, TagCommand,
+    RevParse, ShowRefCommand, TagCommand,
 };
 
 #[derive(Parser)]
@@ -61,6 +61,12 @@ enum Commands {
         #[arg(default_value = "HEAD")]
         object: String,
     },
+    RevParse {
+        #[arg(short = 't')]
+        object_type: String,
+        #[arg()]
+        name: String,
+    },
 }
 
 fn main() {
@@ -80,12 +86,15 @@ fn main() {
         Commands::Log { commit } => LogCommand::new(&commit).and_then(|cmd| cmd.execute()),
         Commands::LsTree { recursive, tree } => LsTreeCommand::new(&tree, recursive).execute(),
         Commands::Checkout { commit, path } => CheckoutCommand::new(&commit, &path).execute(),
-        Commands::ShowRef {} => ShowRefCommand::execute(),
+        Commands::ShowRef => ShowRefCommand::execute(),
         Commands::Tag {
             annotation,
             name,
             object,
         } => TagCommand::new(annotation, &name, &object).execute(),
+        Commands::RevParse { object_type, name } => {
+            RevParse::new(&object_type, &name).and_then(|cmd| cmd.execute())
+        }
     };
 
     if let Err(e) = result {

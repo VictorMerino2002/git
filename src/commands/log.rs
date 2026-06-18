@@ -25,12 +25,13 @@ impl LogCommand {
         queue.push_back(self.commit.clone());
 
         while let Some(current_commit) = queue.pop_front() {
-            if seen.contains(&current_commit) {
+            let resolved_commit = repo.find_sha(&current_commit, None, false)?;
+            if seen.contains(&resolved_commit) {
                 continue;
             }
-            seen.insert(current_commit.clone());
+            seen.insert(resolved_commit.clone());
 
-            let object = repo.read_object(&current_commit)?;
+            let object = repo.read_object(&resolved_commit)?;
             match object.object_type() {
                 ObjectType::Commit => {}
                 _ => bail!("Object {} is not a commit", current_commit),

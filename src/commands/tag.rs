@@ -40,7 +40,7 @@ impl TagCommand {
     }
 
     fn create_tag(&self, repo: &Repository) -> Result<()> {
-        let sha = repo.find_sha(&self.object, None)?;
+        let sha = repo.find_sha(&self.object, None, false)?;
 
         match self.annotation {
             true => {

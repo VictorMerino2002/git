@@ -23,6 +23,7 @@ impl Object for Tag {
         map.insert("object".into(), vec![self.object.clone()]);
         map.insert("type".into(), vec![self.object_type.to_string()]);
         map.insert("tag".into(), vec![self.tag.clone()]);
+        map.insert("tagger".into(), vec![self.tagger.clone()]);
         map.insert("message".into(), vec![self.message.clone()]);
 
         kvlm_serialize(&map).into_bytes()

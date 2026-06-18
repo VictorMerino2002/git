@@ -10,3 +10,4 @@ flate2 = "1"
 clap = { version = "4", features = ["derive"] }
 anyhow = "1"
 indexmap = "1"
+regex = "1"

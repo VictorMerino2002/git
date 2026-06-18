@@ -20,7 +20,7 @@ impl CatFileCommand {
     pub fn execute(&self) -> Result<()> {
         let path = std::env::current_dir()?;
         let repo = Repository::find(path)?;
-        let object_sha = repo.find_sha(&self.object, Some(&self.object_type))?;
+        let object_sha = repo.find_sha(&self.object, Some(&self.object_type), false)?;
         let object = repo.read_object(&object_sha)?;
         print!("{}", object.pretty_print());
         Ok(())
