@@ -4,12 +4,12 @@ use anyhow::{Ok, Result};
 
 use crate::{objects::shared::ObjectType, repository::Repository};
 
-pub struct RevParse {
+pub struct RevParseCommand {
     object_type: ObjectType,
     name: String,
 }
 
-impl RevParse {
+impl RevParseCommand {
     pub fn new(object_type: &str, name: &str) -> Result<Self> {
         let object_type = ObjectType::try_from(object_type.to_string())?;
 

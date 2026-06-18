@@ -1,5 +1,6 @@
 mod commands;
 mod config;
+mod index;
 mod objects;
 mod repository;
 mod utils;
@@ -7,8 +8,8 @@ mod utils;
 use clap::{Parser, Subcommand};
 
 use crate::commands::{
-    CatFileCommand, CheckoutCommand, HashObjectCommand, InitCommand, LogCommand, LsTreeCommand,
-    RevParse, ShowRefCommand, TagCommand,
+    CatFileCommand, CheckoutCommand, HashObjectCommand, InitCommand, LogCommand, LsFilesCommand,
+    LsTreeCommand, RevParseCommand, ShowRefCommand, TagCommand,
 };
 
 #[derive(Parser)]
@@ -67,6 +68,10 @@ enum Commands {
         #[arg()]
         name: String,
     },
+    LsFiles {
+        #[arg(long = "verbose")]
+        verbose: bool,
+    },
 }
 
 fn main() {
@@ -93,8 +98,9 @@ fn main() {
             object,
         } => TagCommand::new(annotation, &name, &object).execute(),
         Commands::RevParse { object_type, name } => {
-            RevParse::new(&object_type, &name).and_then(|cmd| cmd.execute())
+            RevParseCommand::new(&object_type, &name).and_then(|cmd| cmd.execute())
         }
+        Commands::LsFiles { verbose } => LsFilesCommand::new(verbose).execute(),
     };
 
     if let Err(e) = result {
