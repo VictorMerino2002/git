@@ -1,4 +1,5 @@
 mod cat_file;
+mod check_ignore;
 mod checkout;
 mod hash_object;
 mod init;
@@ -10,6 +11,7 @@ mod show_ref;
 mod tag;
 
 pub use cat_file::CatFileCommand;
+pub use check_ignore::CheckIgnoreCommand;
 pub use checkout::CheckoutCommand;
 pub use hash_object::HashObjectCommand;
 pub use init::InitCommand;

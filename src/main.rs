@@ -1,5 +1,6 @@
 mod commands;
 mod config;
+mod git_ignore;
 mod index;
 mod objects;
 mod repository;
@@ -8,8 +9,8 @@ mod utils;
 use clap::{Parser, Subcommand};
 
 use crate::commands::{
-    CatFileCommand, CheckoutCommand, HashObjectCommand, InitCommand, LogCommand, LsFilesCommand,
-    LsTreeCommand, RevParseCommand, ShowRefCommand, TagCommand,
+    CatFileCommand, CheckIgnoreCommand, CheckoutCommand, HashObjectCommand, InitCommand,
+    LogCommand, LsFilesCommand, LsTreeCommand, RevParseCommand, ShowRefCommand, TagCommand,
 };
 
 #[derive(Parser)]
@@ -72,6 +73,10 @@ enum Commands {
         #[arg(long = "verbose")]
         verbose: bool,
     },
+    CheckIgnore {
+        #[arg(required = true)]
+        path: Vec<String>,
+    },
 }
 
 fn main() {
@@ -101,6 +106,7 @@ fn main() {
             RevParseCommand::new(&object_type, &name).and_then(|cmd| cmd.execute())
         }
         Commands::LsFiles { verbose } => LsFilesCommand::new(verbose).execute(),
+        Commands::CheckIgnore { path } => CheckIgnoreCommand::new(&path).execute(),
     };
 
     if let Err(e) = result {

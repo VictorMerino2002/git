@@ -1,9 +1,15 @@
 use anyhow::{Context, Ok, Result, bail};
 use regex::Regex;
-use std::{collections::HashMap, fs, path::PathBuf};
+use std::{
+    collections::HashMap,
+    env, fs,
+    path::{Path, PathBuf},
+};
 
 use crate::{
     config::Config,
+    git_ignore::{GitIgnore, IgnoreRule},
+    index::Index,
     objects::{
         Blob, Commit, Tag, Tree,
         shared::{CompressedObject, Object, ObjectType},
@@ -298,5 +304,76 @@ impl Repository {
         fs::create_dir_all(path.parent().unwrap())?;
         fs::write(path, format!("{sha}\n"))?;
         Ok(())
+    }
+
+    pub fn read_gitignore(&self) -> Result<GitIgnore> {
+        let mut git_ignore = GitIgnore::new();
+
+        let local_cfg_path = self.gitdir.join("info/exclude");
+        if local_cfg_path.exists() {
+            let content = fs::read_to_string(local_cfg_path)?;
+            let lines = content.lines().collect::<Vec<&str>>();
+            let rules = GitIgnore::parse_lines(&lines);
+            git_ignore.add_absolute_rules(rules);
+        }
+
+        let cfg_home = env::var("XDG_CONFIG_HOME")
+            .or_else(|_| env::var("HOME").map(|h| format!("{}/.config", h)))?;
+        let global_cfg_path = PathBuf::from(cfg_home).join("git/ignore");
+        if global_cfg_path.exists() {
+            let content = fs::read_to_string(global_cfg_path)?;
+            let lines = content.lines().collect::<Vec<&str>>();
+            let rules = GitIgnore::parse_lines(&lines);
+            git_ignore.add_absolute_rules(rules);
+        }
+
+        self.load_worktree_gitignores(&mut git_ignore);
+    self.load_index_gitignores(&mut git_ignore)?;
+
+        Ok(git_ignore)
+    }
+
+    fn load_worktree_gitignores(&self, git_ignore: &mut GitIgnore) {
+        let gitignore_path = self.worktree.join(".gitignore");
+        if gitignore_path.exists() {
+            if let Some(content) = fs::read_to_string(gitignore_path).ok() {
+                let lines = content.lines().collect::<Vec<&str>>();
+                let rules = GitIgnore::parse_lines(&lines);
+                git_ignore.add_scoped_rules("", rules);
+            }
+        }
+    }
+
+    fn load_index_gitignores(&self, git_ignore: &mut GitIgnore) -> Result<()> {
+        let index_path = self.gitdir.join("index");
+        let index_bytes = match fs::read(index_path) {
+            std::result::Result::Ok(bytes) => bytes,
+            std::result::Result::Err(_) => return std::result::Result::Ok(()),
+        };
+        let index = match Index::from_bytes(&index_bytes) {
+            std::result::Result::Ok(idx) => idx,
+            std::result::Result::Err(_) => return std::result::Result::Ok(()),
+        };
+
+        for entry in index.entries {
+            if entry.name == ".gitignore" || entry.name.ends_with("/.gitignore") {
+                let entry_path = PathBuf::from(&entry.name);
+                let dir_name = entry_path
+                    .parent()
+                    .map(|p| p.to_string_lossy().to_string())
+                    .unwrap_or_default();
+
+                if let Some(obj) = self.read_object(&entry.sha).ok() {
+                    if let Some(blob) = obj.as_any().downcast_ref::<Blob>() {
+                        let content = String::from_utf8_lossy(&blob.data).into_owned();
+                        let lines = content.lines().collect::<Vec<&str>>();
+                        let rules = GitIgnore::parse_lines(&lines);
+                        git_ignore.add_scoped_rules(&dir_name, rules);
+                    }
+                }
+            }
+        }
+
+        std::result::Result::Ok(())
     }
 }
