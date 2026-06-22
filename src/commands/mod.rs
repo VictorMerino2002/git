@@ -1,3 +1,4 @@
+mod add;
 mod cat_file;
 mod check_ignore;
 mod checkout;
@@ -12,6 +13,7 @@ mod show_ref;
 mod status;
 mod tag;
 
+pub use add::AddCommand;
 pub use cat_file::CatFileCommand;
 pub use check_ignore::CheckIgnoreCommand;
 pub use checkout::CheckoutCommand;

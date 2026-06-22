@@ -9,7 +9,7 @@ use std::{
 use crate::{
     config::Config,
     git_ignore::{GitIgnore, IgnoreRule},
-    index::Index,
+    index::{Index, IndexEntry, Timestamp},
     objects::{
         Blob, Commit, Tag, Tree,
         shared::{CompressedObject, Object, ObjectType},
@@ -463,6 +463,74 @@ impl Repository {
                 fs::remove_file(path).context("Failed to remove file")?;
             }
         }
+        let new_index_bytes = index.to_bytes()?;
+        fs::write(&index_path, new_index_bytes).context("Failed to write index file")?;
+
+        Ok(())
+    }
+
+    pub fn add(&self, paths: &[String]) -> Result<()> {
+        self.rm(paths, false, true)?;
+
+        let worktree = self.worktree.to_string_lossy().to_string() + "/";
+
+        let mut clean_paths = Vec::new();
+        for path in paths {
+            let abs_path = std::path::absolute(path)
+                .context("Failed to resolve absolute path")?
+                .to_string_lossy()
+                .to_string();
+            if !abs_path.starts_with(&worktree) || !std::path::Path::new(&abs_path).is_file() {
+                bail!("Not a file, or outside the worktree: {paths:?}");
+            }
+            let relpath = std::path::Path::new(&abs_path)
+                .strip_prefix(&self.worktree)
+                .context("Failed to compute relative path")?
+                .to_string_lossy()
+                .to_string();
+            clean_paths.push((abs_path, relpath));
+        }
+
+        let index_path = self.gitdir.join("index");
+        let index_bytes = fs::read(&index_path).context("Failed to read index file")?;
+        let mut index = Index::from_bytes(&index_bytes)?;
+
+        for (abspath, relpath) in &clean_paths {
+            let data = fs::read(abspath).context("Failed to read file")?;
+            let object: Box<dyn Object> = Box::new(Blob { data });
+            let compressed = self.write_object(object)?;
+
+            let stat = fs::metadata(abspath).context("Failed to get file metadata")?;
+
+            let mtime = stat.modified().context("Failed to get mtime")?;
+            let duration_since_epoch = mtime
+                .duration_since(std::time::UNIX_EPOCH)
+                .context("File time is before Unix epoch")?;
+
+            let entry = IndexEntry {
+                ctime: Timestamp {
+                    seconds: 0,
+                    nanoseconds: 0,
+                },
+                mtime: Timestamp {
+                    seconds: duration_since_epoch.as_secs() as u32,
+                    nanoseconds: duration_since_epoch.subsec_nanos(),
+                },
+                dev: 0,
+                ino: 0,
+                mode_type: 0b1000,
+                mode_perms: 0o644,
+                uid: 0,
+                gid: 0,
+                fsize: stat.len() as u32,
+                sha: compressed.sha,
+                flag_assume_valid: false,
+                flag_stage: 0,
+                name: relpath.clone(),
+            };
+            index.entries.push(entry);
+        }
+
         let new_index_bytes = index.to_bytes()?;
         fs::write(&index_path, new_index_bytes).context("Failed to write index file")?;
 
