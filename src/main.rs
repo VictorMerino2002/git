@@ -87,6 +87,10 @@ enum Commands {
         #[arg(required = true)]
         paths: Vec<String>,
     },
+    Commit {
+        #[arg(short = 'm')]
+        message: String,
+    },
 }
 
 fn main() {
@@ -120,6 +124,7 @@ fn main() {
         Commands::Status => StatusCommand::new().and_then(|cmd| cmd.execute()),
         Commands::Rm { paths } => RmCommand::new(&paths).execute(),
         Commands::Add { paths } => AddCommand::new(&paths).execute(),
+        Commands::Commit { message } => commands::CommitCommand::new(&message).execute(),
     };
 
     if let Err(e) = result {

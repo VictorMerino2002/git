@@ -7,4 +7,4 @@ mod tree;
 pub use blob::Blob;
 pub use commit::Commit;
 pub use tag::Tag;
-pub use tree::Tree;
+pub use tree::{Tree, TreeRow};

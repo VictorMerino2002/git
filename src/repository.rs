@@ -11,11 +11,16 @@ use crate::{
     git_ignore::{GitIgnore, IgnoreRule},
     index::{Index, IndexEntry, Timestamp},
     objects::{
-        Blob, Commit, Tag, Tree,
+        Blob, Commit, Tag, Tree, TreeRow,
         shared::{CompressedObject, Object, ObjectType},
     },
     utils::{sha1, zlib},
 };
+
+enum EntryOrTree<'a> {
+    Entry(&'a IndexEntry),
+    TreeItem((String, String)),
+}
 
 pub struct Repository {
     pub worktree: PathBuf,
@@ -306,6 +311,33 @@ impl Repository {
         Ok(())
     }
 
+    pub fn read_gitcfg() -> Result<Config> {
+        let xdg_config_home = env::var("XDG_CONFIG_HOME").unwrap_or_else(|_| {
+            let home = env::var("HOME").unwrap_or_else(|_| "~".to_string());
+            format!("{}/.config", home)
+        });
+
+        let config_paths = vec![
+            PathBuf::from(&xdg_config_home).join("git/config"),
+            PathBuf::from(env::var("HOME").unwrap_or_else(|_| "~".to_string())).join(".gitconfig"),
+        ];
+
+        let mut raw: HashMap<String, HashMap<String, String>> = HashMap::new();
+        for path in &config_paths {
+            if path.exists() {
+                let content = fs::read_to_string(path)
+                    .context(format!("Failed to read {}", path.display()))?;
+                if let std::result::Result::Ok(cfg) = Config::from_str(&content) {
+                    for (section, keys) in cfg.raw {
+                        raw.entry(section).or_default().extend(keys);
+                    }
+                }
+            }
+        }
+
+        Ok(Config::from_raw(raw))
+    }
+
     pub fn read_gitignore(&self) -> Result<GitIgnore> {
         let mut git_ignore = GitIgnore::new();
 
@@ -467,6 +499,106 @@ impl Repository {
         fs::write(&index_path, new_index_bytes).context("Failed to write index file")?;
 
         Ok(())
+    }
+
+    pub fn commit_create(
+        &self,
+        tree: &str,
+        parent: Option<&str>,
+        author: &str,
+        timestamp: &chrono::DateTime<chrono::Utc>,
+        message: &str,
+    ) -> Result<String> {
+        let tz = "+0000";
+        let author_line = format!("{} {} {}", author, timestamp.timestamp(), tz);
+
+        let commit = Commit {
+            tree: tree.to_string(),
+            parents: parent.map(|p| vec![p.to_string()]).unwrap_or_default(),
+            author: author_line.clone(),
+            committer: author_line,
+            message: message.trim().to_string() + "\n",
+        };
+
+        let obj: Box<dyn Object> = Box::new(commit);
+        let compressed = self.write_object(obj)?;
+        Ok(compressed.sha)
+    }
+
+    pub fn tree_from_index(&self, index: &Index) -> Result<String> {
+        let mut contents: HashMap<String, Vec<EntryOrTree>> = HashMap::new();
+        contents.entry("".to_string()).or_default();
+
+        for entry in &index.entries {
+            let dirname = Path::new(&entry.name)
+                .parent()
+                .map(|p| p.to_string_lossy().to_string())
+                .unwrap_or_default();
+
+            let mut key = dirname.clone();
+            while key != "" {
+                contents.entry(key.clone()).or_default();
+                key = Path::new(&key)
+                    .parent()
+                    .map(|p| p.to_string_lossy().to_string())
+                    .unwrap_or_default();
+            }
+
+            contents
+                .entry(dirname)
+                .or_default()
+                .push(EntryOrTree::Entry(entry));
+        }
+
+        let mut sorted_paths: Vec<String> = contents.keys().cloned().collect();
+        sorted_paths.sort_by(|a, b| b.len().cmp(&a.len()));
+
+        let mut sha = String::new();
+
+        for path in &sorted_paths {
+            let mut tree = Tree { rows: Vec::new() };
+
+            for item in &contents[path] {
+                match item {
+                    EntryOrTree::Entry(entry) => {
+                        let mode = format!("{:02o}{:04o}", entry.mode_type, entry.mode_perms);
+                        let leaf = TreeRow::new(
+                            &mode,
+                            &entry.sha,
+                            Path::new(&entry.name)
+                                .file_name()
+                                .map(|n| n.to_string_lossy().to_string())
+                                .unwrap_or_default(),
+                        );
+                        tree.rows.push(leaf);
+                    }
+                    EntryOrTree::TreeItem((base_name, tree_sha)) => {
+                        let leaf = TreeRow::new("040000", tree_sha, base_name.clone());
+                        tree.rows.push(leaf);
+                    }
+                }
+            }
+
+            let obj: Box<dyn Object> = Box::new(tree);
+            let compressed = self.write_object(obj)?;
+            sha = compressed.sha;
+
+            let parent = Path::new(path)
+                .parent()
+                .map(|p| p.to_string_lossy().to_string())
+                .unwrap_or_default();
+            let base = Path::new(path)
+                .file_name()
+                .map(|n| n.to_string_lossy().to_string())
+                .unwrap_or_default();
+
+            contents
+                .entry(parent)
+                .or_default()
+                .push(EntryOrTree::TreeItem((base, sha.clone())));
+        }
+
+        Ok(sha)
     }
 
     pub fn add(&self, paths: &[String]) -> Result<()> {
