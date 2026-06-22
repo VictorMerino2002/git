@@ -1,7 +1,7 @@
 use anyhow::{Context, Ok, Result, bail};
 use regex::Regex;
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     env, fs,
     path::{Path, PathBuf},
 };
@@ -410,5 +410,69 @@ impl Repository {
             };
         }
         Ok(map)
+    }
+
+    pub fn rm(&self, paths: &[String], delete: bool, skip_missing: bool) -> Result<()> {
+        let index_path = self.gitdir.join("index");
+        let index_bytes = fs::read(&index_path).context("Failed to read index file")?;
+        let mut index = Index::from_bytes(&index_bytes)?;
+
+        let worktree = self.worktree.to_string_lossy().to_string() + "/";
+
+        let mut abspaths: HashSet<String> = HashSet::new();
+        for path in paths {
+            let abs_path = std::path::absolute(path)
+                .context("Failed to resolve absolute path")?
+                .to_string_lossy()
+                .to_string();
+            if abs_path.starts_with(&worktree) {
+                abspaths.insert(abs_path);
+            } else {
+                bail!("Cannot remove paths outside of worktree: {paths:?}");
+            }
+        }
+
+        let mut remove = Vec::new();
+
+        index.entries = index
+            .entries
+            .into_iter()
+            .filter(|e| {
+                let full_path = self.worktree.join(&e.name);
+                let full_path_str = full_path.to_string_lossy().to_string();
+
+                if abspaths.contains(&full_path_str) {
+                    remove.push(full_path);
+                    abspaths.remove(&full_path_str);
+                    false
+                } else {
+                    true
+                }
+            })
+            .collect();
+
+        if !abspaths.is_empty() && !skip_missing {
+            bail!(
+                "Cannot remove paths not in the index: {:?}",
+                abspaths.iter().collect::<Vec<_>>()
+            );
+        }
+
+        if delete {
+            for path in &remove {
+                fs::remove_file(path).context("Failed to remove file")?;
+            }
+        }
+        let new_index_bytes = index.to_bytes()?;
+        fs::write(&index_path, new_index_bytes).context("Failed to write index file")?;
+
+        Ok(())
+    }
+
+    pub fn write_index(&self, index: &Index) -> Result<()> {
+        let index_bytes = index.to_bytes()?;
+        let index_path = self.gitdir.join("index");
+        fs::write(index_path, index_bytes).context("Failed to write index file")?;
+        Ok(())
     }
 }

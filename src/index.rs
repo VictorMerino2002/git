@@ -6,6 +6,7 @@ pub struct Index {
     pub entries: Vec<IndexEntry>,
 }
 
+#[derive(Clone)]
 pub struct IndexEntry {
     pub ctime: Timestamp,
     pub mtime: Timestamp,
@@ -22,6 +23,7 @@ pub struct IndexEntry {
     pub name: String,
 }
 
+#[derive(Clone)]
 pub struct Timestamp {
     pub seconds: u32,
     pub nanoseconds: u32,
@@ -54,6 +56,53 @@ fn read_u16(data: &[u8], idx: &mut usize) -> Result<u16> {
 }
 
 impl Index {
+    pub fn to_bytes(&self) -> Result<Vec<u8>> {
+        let mut data = Vec::new();
+
+        data.extend_from_slice(b"DIRC");
+        data.extend_from_slice(&self.version.to_be_bytes());
+        data.extend_from_slice(&(self.entries.len() as u32).to_be_bytes());
+
+        for e in &self.entries {
+            data.extend_from_slice(&e.ctime.seconds.to_be_bytes());
+            data.extend_from_slice(&e.ctime.nanoseconds.to_be_bytes());
+            data.extend_from_slice(&e.mtime.seconds.to_be_bytes());
+            data.extend_from_slice(&e.mtime.nanoseconds.to_be_bytes());
+            data.extend_from_slice(&e.dev.to_be_bytes());
+            data.extend_from_slice(&e.ino.to_be_bytes());
+
+            let mode = ((e.mode_type as u32) << 12) | (e.mode_perms as u32);
+            data.extend_from_slice(&mode.to_be_bytes());
+
+            data.extend_from_slice(&e.uid.to_be_bytes());
+            data.extend_from_slice(&e.gid.to_be_bytes());
+            data.extend_from_slice(&e.fsize.to_be_bytes());
+
+            let sha_bytes = (0..20)
+                .map(|i| u8::from_str_radix(&e.sha[i * 2..i * 2 + 2], 16))
+                .collect::<Result<Vec<u8>, _>>()
+                .map_err(|_| anyhow::anyhow!("Invalid SHA hex string"))?;
+            data.extend_from_slice(&sha_bytes);
+
+            let flag_assume_valid = if e.flag_assume_valid { 0x1 << 15 } else { 0 };
+            let name_bytes = e.name.as_bytes();
+            let name_length = name_bytes.len().min(0xFFF);
+            let flags = flag_assume_valid | e.flag_stage | name_length as u16;
+            data.extend_from_slice(&flags.to_be_bytes());
+
+            data.extend_from_slice(name_bytes);
+            data.push(0x00);
+
+            let entry_size = 62 + name_bytes.len() + 1;
+            if entry_size % 8 != 0 {
+                let pad = 8 - (entry_size % 8);
+                data.extend(std::iter::repeat(0x00).take(pad));
+            }
+        }
+
+        Ok(data)
+    }
+
     pub fn from_bytes(bytes: &[u8]) -> Result<Self> {
         if bytes.len() < 12 {
             bail!("Index file too short to contain a valid header");
