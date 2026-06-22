@@ -8,6 +8,7 @@ mod ls_files;
 mod ls_tree;
 mod rev_parse;
 mod show_ref;
+mod status;
 mod tag;
 
 pub use cat_file::CatFileCommand;
@@ -20,4 +21,5 @@ pub use ls_files::LsFilesCommand;
 pub use ls_tree::LsTreeCommand;
 pub use rev_parse::RevParseCommand;
 pub use show_ref::ShowRefCommand;
+pub use status::StatusCommand;
 pub use tag::TagCommand;

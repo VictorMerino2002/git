@@ -10,7 +10,8 @@ use clap::{Parser, Subcommand};
 
 use crate::commands::{
     CatFileCommand, CheckIgnoreCommand, CheckoutCommand, HashObjectCommand, InitCommand,
-    LogCommand, LsFilesCommand, LsTreeCommand, RevParseCommand, ShowRefCommand, TagCommand,
+    LogCommand, LsFilesCommand, LsTreeCommand, RevParseCommand, ShowRefCommand, StatusCommand,
+    TagCommand,
 };
 
 #[derive(Parser)]
@@ -77,6 +78,7 @@ enum Commands {
         #[arg(required = true)]
         path: Vec<String>,
     },
+    Status,
 }
 
 fn main() {
@@ -107,6 +109,7 @@ fn main() {
         }
         Commands::LsFiles { verbose } => LsFilesCommand::new(verbose).execute(),
         Commands::CheckIgnore { path } => CheckIgnoreCommand::new(&path).execute(),
+        Commands::Status => StatusCommand::new().and_then(|cmd| cmd.execute()),
     };
 
     if let Err(e) = result {

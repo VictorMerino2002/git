@@ -328,7 +328,7 @@ impl Repository {
         }
 
         self.load_worktree_gitignores(&mut git_ignore);
-    self.load_index_gitignores(&mut git_ignore)?;
+        self.load_index_gitignores(&mut git_ignore)?;
 
         Ok(git_ignore)
     }
@@ -375,5 +375,40 @@ impl Repository {
         }
 
         std::result::Result::Ok(())
+    }
+
+    pub fn get_active_branch(&self) -> Result<Option<String>> {
+        let head_file = self.gitdir.join("HEAD");
+        let head = fs::read_to_string(head_file)?;
+        if let Some(branch) = head.strip_prefix("ref: refs/heads/") {
+            Ok(Some(branch.trim().to_string()))
+        } else {
+            Ok(None)
+        }
+    }
+
+    pub fn tree_to_dict(&self, reference: &str, prefix: &str) -> Result<HashMap<String, String>> {
+        let mut map = HashMap::new();
+        let tree_sha = self.find_sha(reference, Some(&ObjectType::Tree), false)?;
+        let obj = self.read_object(&tree_sha)?;
+        let tree_obj = obj
+            .as_any()
+            .downcast_ref::<Tree>()
+            .context("Failed to downcast Tree")?;
+        for row in &tree_obj.rows {
+            let full_path = PathBuf::from(prefix).join(&row.filename);
+            let full_path_str = full_path.to_string_lossy().into_owned();
+
+            match row.object_type {
+                ObjectType::Tree => {
+                    let subtree = self.tree_to_dict(&row.sha, &full_path_str)?;
+                    map.extend(subtree);
+                }
+                _ => {
+                    map.insert(full_path_str, row.sha.clone());
+                }
+            };
+        }
+        Ok(map)
     }
 }
