@@ -2,10 +2,7 @@ use std::{env, fs};
 
 use anyhow::Result;
 
-use crate::{
-    index::Index,
-    repository::Repository,
-};
+use crate::{index::Index, repository::Repository};
 
 pub struct CommitCommand {
     pub message: String,
